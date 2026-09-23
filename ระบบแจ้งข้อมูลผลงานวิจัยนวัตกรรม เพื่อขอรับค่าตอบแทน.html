@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบแจ้งข้อมูลผลงานวิจัยและนวัตกรรม - ศศค. รพ.มหาราชนครราชสีมา</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Vue.js 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Sarabun and Prompt -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- html2pdf.js for Reliable PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                        },
+                        hospital: {
+                            50: '#f0f9ff',
+                            500: '#06b6d4',
+                            700: '#0e7490',
+                            800: '#155e75',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Prompt', 'Sarabun', 'sans-serif'],
+                        sarabun: ['Sarabun', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Prompt', 'Sarabun', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        .font-sarabun {
+            font-family: 'Sarabun', sans-serif;
+        }
+
+        /* Printable / PDF Export Styles */
+        .pdf-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm 18mm;
+            background: white;
+            color: #000;
+            font-family: 'Sarabun', sans-serif;
+            font-size: 13pt;
+            line-height: 1.4;
+            box-sizing: border-box;
+            margin: auto;
+        }
+
+        .pdf-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .pdf-table th, .pdf-table td {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            vertical-align: top;
+        }
+
+        .checkbox-box {
+            display: inline-block;
+            width: 13px;
+            height: 13px;
+            border: 1px solid #000;
+            text-align: center;
+            line-height: 11px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        /* Hide elements on PDF export if needed */
+        .no-print {
+            display: none !important;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <div id="app" class="flex-grow flex flex-col">
+
+        <!-- Top Navigation Header -->
+        <header class="bg-gradient-to-r from-teal-800 via-hospital-800 to-teal-900 text-white shadow-md sticky top-0 z-30">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-white/10 p-2.5 rounded-xl backdrop-blur-md">
+                        <i class="fa-solid me-1 fa-microscope text-2xl text-teal-300"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold tracking-tight">ศูนย์แพทยศาสตรศึกษาชั้นคลินิก โรงพยาบาลมหาราชนครราชสีมา</h1>
+                        <p class="text-xs sm:text-sm text-teal-100/90 font-light">ระบบแจ้งข้อมูลผลงานวิจัย/นวัตกรรม เพื่อขอรับค่าตอบแทน</p>
+                    </div>
+                </div>
+
+                <!-- Role Switcher & Header Controls -->
+                <div class="flex items-center space-x-2">
+                    <button @click="currentTab = 'form'" 
+                            :class="currentTab === 'form' ? 'bg-white text-teal-900 font-semibold shadow' : 'bg-teal-700/60 hover:bg-teal-700 text-white'"
+                            class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                        <span>แบบฟอร์มยื่นเรื่อง</span>
+                    </button>
+
+                    <button @click="currentTab = 'user_list'" 
+                            :class="currentTab === 'user_list' ? 'bg-white text-teal-900 font-semibold shadow' : 'bg-teal-700/60 hover:bg-teal-700 text-white'"
+                            class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-list-ul"></i>
+                        <span>รายการยื่นทั้งหมด</span>
+                    </button>
+
+                    <button @click="currentTab = 'dashboard'" 
+                            :class="currentTab === 'dashboard' ? 'bg-white text-teal-900 font-semibold shadow' : 'bg-teal-700/60 hover:bg-teal-700 text-white'"
+                            class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>Dashboard สรุปภาพรวม</span>
+                    </button>
+
+                    <button @click="openAdminAccess" 
+                            :class="currentTab === 'admin' ? 'bg-amber-400 text-slate-900 font-bold shadow' : 'bg-amber-600/80 hover:bg-amber-600 text-white'"
+                            class="px-3 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>เจ้าหน้าที่ / คณะกรรมการ</span>
+                        <span v-if="isAdmin" class="bg-amber-900 text-amber-200 text-[10px] px-1.5 py-0.5 rounded-full ml-1">Admin</span>
+                    </button>
+
+                    <button v-if="isAdmin" @click="logoutAdmin" class="bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-1" title="ออกจากระบบ">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span class="hidden sm:inline">ออกจากระบบ</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+            <!-- TAB 1: USER SUBMISSION FORM -->
+            <div v-if="currentTab === 'form'" class="space-y-6">
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                    <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-file-signature text-teal-600"></i>
+                                แบบฟอร์มแจ้งข้อมูลผลงานวิจัย/นวัตกรรม เพื่อขอรับค่าตอบแทน
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">(แนบท้ายประกาศศูนย์แพทยศาสตรศึกษาชั้นคลินิก โรงพยาบาลมหาราชนครราชสีมา)</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-semibold text-slate-600">ประจำปีงบประมาณ:</label>
+                            <input v-model="formData.fiscal_year" type="number" class="w-24 px-3 py-1 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                        </div>
+                    </div>
+
+                    <form @submit.prevent="triggerPreviewModal" class="p-6 space-y-8">
+                        
+                        <!-- Section 1 -->
+                        <div class="space-y-4">
+                            <div class="border-b border-slate-200 pb-2 flex items-center justify-between">
+                                <h3 class="text-md font-bold text-teal-800 flex items-center gap-2">
+                                    <span class="bg-teal-100 text-teal-800 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">๑</span>
+                                    ส่วนที่ ๑ : ข้อมูลผู้แจ้ง
+                                </h3>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-สกุล <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.notifier_name" required type="text" placeholder="ระบุชื่อ-นามสกุล พร้อมคำนำหน้า" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">ตำแหน่ง / กลุ่มงาน <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.position_group" required type="text" placeholder="เช่น อาจารย์แพทย์ กลุ่มงานอายุรศาสตร์" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-700 mb-1">โทรศัพท์ / อีเมล <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.phone_email" required type="text" placeholder="08X-XXX-XXXX / example@mail.com" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-2">สถานะในผลงาน <span class="text-rose-500">*</span></label>
+                                <div class="flex flex-wrap gap-6 text-sm">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" v-model="formData.author_status" value="ผู้วิจัยหลัก" name="author_status" required class="text-teal-600 focus:ring-teal-500">
+                                        <span>ผู้วิจัยหลัก (First Author / Corresponding Author)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" v-model="formData.author_status" value="ผู้วิจัยร่วมที่ได้รับมอบหมาย" name="author_status" class="text-teal-600 focus:ring-teal-500">
+                                        <span>ผู้วิจัยร่วมที่ได้รับมอบหมาย</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 2 -->
+                        <div class="space-y-4">
+                            <div class="border-b border-slate-200 pb-2 flex items-center justify-between">
+                                <h3 class="text-md font-bold text-teal-800 flex items-center gap-2">
+                                    <span class="bg-teal-100 text-teal-800 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">๒</span>
+                                    ส่วนที่ ๒ : ข้อมูลผลงาน
+                                </h3>
+                                <span class="text-xs text-rose-500 font-medium">* บังคับกรอกข้อ ๑, ๓, ๔, ๗, ๘, ๑๐, ๑๒, ๑๓</span>
+                            </div>
+
+                            <!-- Item 1 -->
+                            <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
+                                <label class="block text-xs font-bold text-slate-800">๑. ชื่อผลงาน <span class="text-rose-500">*</span></label>
+                                <div>
+                                    <span class="text-xs text-slate-500 font-medium">ภาษาไทย:</span>
+                                    <input v-model="formData.title_th" required type="text" placeholder="ชื่อผลงานภาษาไทย" class="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                                <div>
+                                    <span class="text-xs text-slate-500 font-medium">ภาษาอังกฤษ:</span>
+                                    <input v-model="formData.title_en" type="text" placeholder="Title in English" class="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Item 2 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๒. ประเภทผลงาน</label>
+                                    <div class="flex flex-wrap gap-4 text-sm pt-1">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.work_type.med_ed" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>Med-ed</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.work_type.clinic" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>Clinic</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.work_type.innovation" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>นวัตกรรม</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Item 3 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๓. สถานะผลงาน <span class="text-rose-500">*</span></label>
+                                    <div class="space-y-1.5 text-sm pt-1">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.work_status" value="มีหัวข้อ/โครงร่าง อยู่ระหว่างดำเนินการ" required class="text-teal-600 focus:ring-teal-500">
+                                            <span>มีหัวข้อ/โครงร่าง อยู่ระหว่างดำเนินการ</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.work_status" value="วิจัยสำเร็จ นำเสนอ" class="text-teal-600 focus:ring-teal-500">
+                                            <span>วิจัยสำเร็จ นำเสนอ (ระบุข้อ ๔)</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.work_status" value="ตีพิมพ์" class="text-teal-600 focus:ring-teal-500">
+                                            <span>ตีพิมพ์</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Item 4 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๔. ประเภทการนำเสนอ <span class="text-rose-500">*</span></label>
+                                    <div class="flex flex-wrap gap-4 text-sm pt-1">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.presentation_type" value="Oral" required class="text-teal-600 focus:ring-teal-500">
+                                            <span>Oral</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.presentation_type" value="Poster" class="text-teal-600 focus:ring-teal-500">
+                                            <span>Poster</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.presentation_type" value="อื่น ๆ" class="text-teal-600 focus:ring-teal-500">
+                                            <span>อื่น ๆ</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" v-model="formData.presentation_type" value="ไม่มี" class="text-teal-600 focus:ring-teal-500">
+                                            <span>ไม่มี</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Item 5 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๕. คำสำคัญ (๓-๕ คำ)</label>
+                                    <input v-model="formData.keywords" type="text" placeholder="คำสำคัญ 1, คำสำคัญ 2, คำสำคัญ 3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Item 6: Authors list -->
+                            <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <label class="block text-xs font-bold text-slate-800">๖. ชื่อผู้วิจัยทั้งหมด และสัดส่วนส่วนร่วม (%)</label>
+                                    <button type="button" @click="addAuthor" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs flex items-center gap-1 transition">
+                                        <i class="fa-solid fa-plus"></i> เพิ่มผู้วิจัย
+                                    </button>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <div v-for="(author, index) in formData.authors" :key="index" class="flex items-center gap-2">
+                                        <span class="text-xs font-bold text-slate-500 w-6 text-center">{{ index + 1 }}.</span>
+                                        <input v-model="author.name" type="text" placeholder="ชื่อ-นามสกุล ผู้วิจัย" class="flex-grow px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                        <input v-model="author.affiliation" type="text" placeholder="สังกัด/กลุ่มงาน" class="w-1/3 px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                        <div class="flex items-center gap-1">
+                                            <input v-model.number="author.percentage" type="number" min="0" max="100" placeholder="%" class="w-16 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-teal-500 outline-none">
+                                            <span class="text-xs text-slate-500">%</span>
+                                        </div>
+                                        <button v-if="formData.authors.length > 1" type="button" @click="removeAuthor(index)" class="text-rose-500 hover:text-rose-700 p-1">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-right text-xs font-semibold text-slate-600">
+                                    รวมสัดส่วน: <span :class="totalPercentage === 100 ? 'text-teal-600' : 'text-amber-600'">{{ totalPercentage }}%</span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Item 7 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๗. ผู้นำเสนอ <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.presenter_name" required type="text" placeholder="ระบุชื่อ-สกุล ผู้นำเสนอผลงาน" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+
+                                <!-- Item 8 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๘. ชื่อการประชุม / สถานที่ <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.conference_name_place" required type="text" placeholder="ชื่อการประชุมวิชาการ และสถานที่จัดงาน" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                    <div class="flex items-center gap-4 text-xs pt-1">
+                                        <span class="font-medium text-slate-600">รูปแบบ:</span>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="radio" v-model="formData.conference_format" value="Online" class="text-teal-600">
+                                            <span>Online</span>
+                                        </label>
+                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                            <input type="radio" v-model="formData.conference_format" value="Onsite" class="text-teal-600">
+                                            <span>Onsite</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <!-- Item 9 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๙. ลิงก์ (Link) บทคัดย่อ</label>
+                                    <input v-model="formData.abstract_link" type="text" placeholder="https://... หรือแนบลิงก์" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+
+                                <!-- Item 10 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๑๐. ชื่อวารสารที่ตีพิมพ์ <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.journal_name" required type="text" placeholder="ชื่อวารสารทางวิชาการ" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+
+                                <!-- Item 11 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๑๑. ลิงก์ (Link) บทความ / DOI</label>
+                                    <input v-model="formData.article_doi_link" type="text" placeholder="https://doi.org/... หรือ URL" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Item 12 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๑๒. ปี ค.ศ. ของผลงาน <span class="text-rose-500">*</span></label>
+                                    <input v-model="formData.work_year_ad" required type="number" min="2000" max="2100" placeholder="2024" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+                                </div>
+
+                                <!-- Item 13 -->
+                                <div class="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                                    <label class="block text-xs font-bold text-slate-800">๑๓. การสนับสนุนจาก ศศค. <span class="text-rose-500">*</span></label>
+                                    <div class="flex flex-wrap gap-4 text-sm pt-1">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.support_from_mec.budget" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>งบประมาณ</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.support_from_mec.personnel" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>บุคลากร</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" v-model="formData.support_from_mec.none" class="rounded text-teal-600 focus:ring-teal-500">
+                                            <span>ไม่ได้รับ</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 3 -->
+                        <div class="space-y-4">
+                            <div class="border-b border-slate-200 pb-2">
+                                <h3 class="text-md font-bold text-teal-800 flex items-center gap-2">
+                                    <span class="bg-teal-100 text-teal-800 w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">๓</span>
+                                    ส่วนที่ ๓ : คำรับรองของผู้แจ้ง และเอกสารแนบ
+                                </h3>
+                            </div>
+
+                            <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3 text-xs sm:text-sm text-slate-800">
+                                <p class="font-bold text-amber-900">ข้าพเจ้าขอรับรองว่า:</p>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" v-model="formData.certifications.never_applied" required class="mt-0.5 rounded text-teal-600 focus:ring-teal-500">
+                                    <span>ผลงานนี้ ไม่เคยยื่นขอรับทุนสนับสนุนการวิจัยจากแหล่งทุนใดมาก่อน ทั้งภายในและภายนอกหน่วยงาน</span>
+                                </label>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" v-model="formData.certifications.never_rewarded" required class="mt-0.5 rounded text-teal-600 focus:ring-teal-500">
+                                    <span>ผลงานนี้ ไม่เคยได้รับค่าตอบแทน/เงินรางวัลจากศูนย์แพทยศาสตรศึกษาชั้นคลินิกมาก่อน</span>
+                                </label>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" v-model="formData.certifications.no_duplicate_author" required class="mt-0.5 rounded text-teal-600 focus:ring-teal-500">
+                                    <span>ผลงานนี้ ยังไม่มีผู้วิจัยร่วมท่านอื่นยื่นแจ้งข้อมูลเรื่องเดียวกัน</span>
+                                </label>
+                                <label class="flex items-start gap-2.5 cursor-pointer">
+                                    <input type="checkbox" v-model="formData.certifications.truthful" required class="mt-0.5 rounded text-teal-600 focus:ring-teal-500">
+                                    <span>ข้อมูลที่แจ้งเป็นความจริงทุกประการ หากเป็นเท็จ ยินยอมให้เรียกคืนค่าตอบแทนทั้งจำนวนตามประกาศ</span>
+                                </label>
+                            </div>
+
+                            <!-- File Attachments Section -->
+                            <div class="p-5 bg-teal-50/50 rounded-xl border border-teal-200 space-y-4">
+                                <div>
+                                    <h4 class="text-xs font-bold text-teal-900 uppercase tracking-wider flex items-center gap-2">
+                                        <i class="fa-solid fa-paperclip text-teal-600"></i>
+                                        เอกสารแนบตามประเภท (คลิกเพื่ออัปโหลดไฟล์ และสามารถเปิดดูไฟล์ภายหลังได้)
+                                    </h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">รองรับไฟล์ PDF, Word, รูปภาพ (ขนาดไม่เกิน 10MB ต่อไฟล์)</p>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    
+                                    <!-- Attachment 1 -->
+                                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-slate-700">1. บทคัดย่อ / โครงร่าง</span>
+                                            <span v-if="formData.attached_files.abstract" class="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-semibold">อัปโหลดแล้ว</span>
+                                        </div>
+                                        <input type="file" @change="handleFileUpload($event, 'abstract')" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                                        <div v-if="formData.attached_files.abstract" class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                            <span class="truncate max-w-[180px] text-slate-600"><i class="fa-solid fa-file me-1 text-teal-600"></i>{{ formData.attached_files.abstract.name }}</span>
+                                            <button type="button" @click="openFile(formData.attached_files.abstract)" class="text-teal-600 hover:text-teal-800 font-semibold text-xs flex items-center gap-1">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดูไฟล์
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Attachment 2 -->
+                                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-slate-700">2. หลักฐานการนำเสนอ</span>
+                                            <span v-if="formData.attached_files.presentation" class="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-semibold">อัปโหลดแล้ว</span>
+                                        </div>
+                                        <input type="file" @change="handleFileUpload($event, 'presentation')" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                                        <div v-if="formData.attached_files.presentation" class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                            <span class="truncate max-w-[180px] text-slate-600"><i class="fa-solid fa-file me-1 text-teal-600"></i>{{ formData.attached_files.presentation.name }}</span>
+                                            <button type="button" @click="openFile(formData.attached_files.presentation)" class="text-teal-600 hover:text-teal-800 font-semibold text-xs flex items-center gap-1">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดูไฟล์
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Attachment 3 -->
+                                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-slate-700">3. หลักฐานการตีพิมพ์</span>
+                                            <span v-if="formData.attached_files.publication" class="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-semibold">อัปโหลดแล้ว</span>
+                                        </div>
+                                        <input type="file" @change="handleFileUpload($event, 'publication')" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                                        <div v-if="formData.attached_files.publication" class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                            <span class="truncate max-w-[180px] text-slate-600"><i class="fa-solid fa-file me-1 text-teal-600"></i>{{ formData.attached_files.publication.name }}</span>
+                                            <button type="button" @click="openFile(formData.attached_files.publication)" class="text-teal-600 hover:text-teal-800 font-semibold text-xs flex items-center gap-1">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดูไฟล์
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Attachment 4 -->
+                                    <div class="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-xs font-bold text-slate-700">4. เอกสารแนบอื่น ๆ</span>
+                                            <span v-if="formData.attached_files.other" class="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-semibold">อัปโหลดแล้ว</span>
+                                        </div>
+                                        <input type="text" v-model="formData.attached_files_other_detail" placeholder="ระบุรายละเอียดเอกสารแนบอื่น ๆ" class="w-full mb-1 px-2.5 py-1 border border-slate-200 rounded-lg text-xs outline-none">
+                                        <input type="file" @change="handleFileUpload($event, 'other')" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer">
+                                        <div v-if="formData.attached_files.other" class="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                            <span class="truncate max-w-[180px] text-slate-600"><i class="fa-solid fa-file me-1 text-teal-600"></i>{{ formData.attached_files.other.name }}</span>
+                                            <button type="button" @click="openFile(formData.attached_files.other)" class="text-teal-600 hover:text-teal-800 font-semibold text-xs flex items-center gap-1">
+                                                <i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดูไฟล์
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Form Submit Button -->
+                        <div class="pt-4 border-t border-slate-200 flex justify-end">
+                            <button type="submit" class="px-8 py-3 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white rounded-xl font-medium shadow-md hover:shadow-lg transition flex items-center gap-2 text-base">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <span>ตรวจสอบและบันทึกข้อมูล (Preview)</span>
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+
+            </div>
+
+            <!-- TAB 2: USER ALL SUBMISSIONS LIST (PUBLIC TRACKING) -->
+            <div v-if="currentTab === 'user_list'" class="space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-list-ul text-teal-600"></i>
+                                รายการแจ้งข้อมูลผลงานวิจัยทั้งหมดพร้อมสถานะ
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">ติดตามสถานะการพิจารณาผลงานวิจัยที่ยื่นขอรับค่าตอบแทน</p>
+                        </div>
+
+                        <div class="relative w-full sm:w-80">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                            <input v-model="searchQuery" type="text" placeholder="ค้นหาชื่อผู้แจ้ง, ชื่อเรื่อง, เลขรับที่..." class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                                    <th class="p-3">เลขรับที่</th>
+                                    <th class="p-3">วันที่ยื่น/รับเรื่อง</th>
+                                    <th class="p-3">ชื่อผู้แจ้ง / สังกัด</th>
+                                    <th class="p-3">ชื่อผลงานวิจัย</th>
+                                    <th class="p-3 text-center">สถานะผลการพิจารณา</th>
+                                    <th class="p-3 text-center">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr v-for="item in filteredRecords" :key="item.id" class="hover:bg-slate-50 transition">
+                                    <td class="p-3 font-semibold text-slate-800">{{ item.admin_review?.receipt_no || '-' }}</td>
+                                    <td class="p-3 text-slate-600">{{ item.admin_review?.receipt_date || item.created_at }}</td>
+                                    <td class="p-3">
+                                        <div class="font-bold text-slate-800">{{ item.notifier_name }}</div>
+                                        <div class="text-[11px] text-slate-500">{{ item.position_group }}</div>
+                                    </td>
+                                    <td class="p-3 max-w-xs">
+                                        <div class="font-medium text-slate-800 line-clamp-1">{{ item.title_th }}</div>
+                                        <div class="text-[11px] text-slate-400 italic line-clamp-1" v-if="item.title_en">{{ item.title_en }}</div>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <span v-if="item.admin_review?.result === 'อนุมัติ'" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-circle-check text-emerald-600"></i> อนุมัติ ๑,๐๐๐ บาท
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ให้แก้ไข'" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-triangle-exclamation text-amber-600"></i> ให้แก้ไขภายใน 7 วัน
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ไม่อนุมัติ'" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-circle-xmark text-rose-600"></i> ไม่อนุมัติ
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ข้อมูลซ้ำ'" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-copy text-purple-600"></i> ข้อมูลซ้ำ
+                                        </span>
+                                        <span v-else class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-clock text-slate-400"></i> รอดำเนินการ
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <button @click="openItemDetail(item)" class="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium transition">
+                                            <i class="fa-solid fa-file-lines me-1"></i> ดูรายละเอียด
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="filteredRecords.length === 0">
+                                    <td colspan="6" class="p-8 text-center text-slate-400">ไม่พบรายการยื่นข้อมูลในระบบ</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DASHBOARD OVERVIEW SUMMARY -->
+            <div v-if="currentTab === 'dashboard'" class="space-y-6">
+                <!-- Dashboard Header -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-teal-600"></i>
+                        สรุปภาพรวมผลการยื่นข้อมูลตามสถานะต่าง ๆ (Dashboard)
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">ภาพรวมเชิงสถิติของผลงานวิจัยที่ได้รับการยื่นในระบบ</p>
+                </div>
+
+                <!-- Stats Metric Cards Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold">ยื่นทั้งหมด</span>
+                            <i class="fa-solid fa-folder-open text-teal-600 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-800">{{ dashboardStats.total }}</div>
+                        <div class="text-[10px] text-slate-400 mt-1">รายการทั้งหมดในระบบ</div>
+                    </div>
+
+                    <div class="bg-emerald-50/80 p-4 rounded-2xl border border-emerald-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-emerald-700 mb-2">
+                            <span class="text-xs font-semibold">อนุมัติแล้ว</span>
+                            <i class="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-emerald-800">{{ dashboardStats.approved }}</div>
+                        <div class="text-[10px] text-emerald-600 mt-1">{{ dashboardStats.total > 0 ? Math.round((dashboardStats.approved/dashboardStats.total)*100) : 0 }}% ของทั้งหมด</div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-600 mb-2">
+                            <span class="text-xs font-semibold">รอดำเนินการ</span>
+                            <i class="fa-solid fa-clock text-slate-500 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-slate-800">{{ dashboardStats.pending }}</div>
+                        <div class="text-[10px] text-slate-500 mt-1">อยู่ระหว่างการตรวจสอบ</div>
+                    </div>
+
+                    <div class="bg-amber-50/80 p-4 rounded-2xl border border-amber-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-amber-700 mb-2">
+                            <span class="text-xs font-semibold">ให้แก้ไข</span>
+                            <i class="fa-solid fa-triangle-exclamation text-amber-600 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-amber-800">{{ dashboardStats.revision }}</div>
+                        <div class="text-[10px] text-amber-600 mt-1">รอการแก้ไขเอกสาร</div>
+                    </div>
+
+                    <div class="bg-purple-50/80 p-4 rounded-2xl border border-purple-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-purple-700 mb-2">
+                            <span class="text-xs font-semibold">ข้อมูลซ้ำ</span>
+                            <i class="fa-solid fa-copy text-purple-600 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-purple-800">{{ dashboardStats.duplicate }}</div>
+                        <div class="text-[10px] text-purple-600 mt-1">ชื่อเรื่องซ้ำกับที่มีอยู่</div>
+                    </div>
+
+                    <div class="bg-rose-50/80 p-4 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-rose-700 mb-2">
+                            <span class="text-xs font-semibold">ไม่อนุมัติ</span>
+                            <i class="fa-solid fa-circle-xmark text-rose-600 text-base"></i>
+                        </div>
+                        <div class="text-2xl font-bold text-rose-800">{{ dashboardStats.rejected }}</div>
+                        <div class="text-[10px] text-rose-600 mt-1">ไม่ผ่านตามเกณฑ์</div>
+                    </div>
+                </div>
+
+                <!-- Secondary Summary breakdown: Types of Research -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-cubes text-teal-600"></i>
+                            จำแนกตามประเภทผลงาน
+                        </h3>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <div class="flex justify-between font-medium mb-1 text-slate-700">
+                                    <span>Med-Ed (แพทยศาสตรศึกษา)</span>
+                                    <span class="font-bold">{{ dashboardStats.medEd }} เรื่อง</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-teal-500 h-2 rounded-full" :style="{ width: dashboardStats.total > 0 ? (dashboardStats.medEd/dashboardStats.total*100)+'%' : '0%' }"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between font-medium mb-1 text-slate-700">
+                                    <span>Clinic (งานวิจัยทางคลินิก)</span>
+                                    <span class="font-bold">{{ dashboardStats.clinic }} เรื่อง</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-blue-500 h-2 rounded-full" :style="{ width: dashboardStats.total > 0 ? (dashboardStats.clinic/dashboardStats.total*100)+'%' : '0%' }"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between font-medium mb-1 text-slate-700">
+                                    <span>นวัตกรรม (Innovation)</span>
+                                    <span class="font-bold">{{ dashboardStats.innovation }} เรื่อง</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-indigo-500 h-2 rounded-full" :style="{ width: dashboardStats.total > 0 ? (dashboardStats.innovation/dashboardStats.total*100)+'%' : '0%' }"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-coins text-amber-600"></i>
+                            ประมาณการงบประมาณค่าตอบแทนที่อนุมัติแล้ว
+                        </h3>
+                        <div class="flex flex-col items-center justify-center p-6 bg-amber-50/50 rounded-xl border border-amber-100 text-center">
+                            <span class="text-xs text-amber-800 font-medium mb-1">ยอดรวมเงินค่าตอบแทนที่อนุมัติ</span>
+                            <div class="text-3xl font-extrabold text-amber-900">
+                                {{ (dashboardStats.approved * 1000).toLocaleString('th-TH') }} <span class="text-base font-normal">บาท</span>
+                            </div>
+                            <span class="text-[11px] text-amber-700/80 mt-2">(คำนวณจากอัตรา ๑,๐๐0 บาท ต่อเรื่องที่ผ่านการอนุมัติ)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: ADMIN / COMMITTEE DASHBOARD -->
+            <div v-if="currentTab === 'admin'" class="space-y-6">
+                
+                <!-- Admin Top Toolbar & Controls -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-amber-600"></i>
+                            รายการแจ้งข้อมูลผลงานวิจัยทั้งหมด (สำหรับเจ้าหน้าที่/กรรมการ)
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">จัดการข้อมูล ตรวจสอบสถานะส่วนที่ ๔ และตั้งค่าคณะกรรมการ/ผู้มีสิทธิ์อนุมัติ</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Manage Approvers Committee Button -->
+                        <button @click="showApproverModal = true" class="px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-user-gear"></i>
+                            <span>แต่งตั้งผู้มีสิทธิ์อนุมัติ / กรรมการ</span>
+                        </button>
+
+                        <!-- Backup Data Button -->
+                        <button @click="exportBackupJSON" class="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Backup สำรองข้อมูล (JSON)</span>
+                        </button>
+
+                        <!-- Restore Data Button -->
+                        <label class="px-3 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-upload"></i>
+                            <span>Restore เรียกคืนข้อมูล</span>
+                            <input type="file" @change="importRestoreJSON" accept=".json" class="hidden">
+                        </label>
+
+                        <!-- Export Excel -->
+                        <button @click="exportToExcel" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>ส่งออก Excel</span>
+                        </button>
+
+                        <!-- Change Admin PIN -->
+                        <button @click="showPinModal = true" class="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-key"></i>
+                            <span>ตั้งค่า/เปลี่ยนรหัสผ่าน</span>
+                        </button>
+
+                        <!-- Logout Button -->
+                        <button @click="logoutAdmin" class="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>ออกจากระบบ</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Submissions Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center flex-wrap gap-3">
+                        <div class="relative w-full sm:w-72">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                            <input v-model="searchQuery" type="text" placeholder="ค้นหาชื่อผู้แจ้ง, ชื่อผลงาน..." class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                        <div class="text-xs text-slate-500 font-medium">
+                            รวมทั้งหมด {{ filteredRecords.length }} รายการ
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                                    <th class="p-3">เลขรับที่</th>
+                                    <th class="p-3">วันที่รับ</th>
+                                    <th class="p-3">ชื่อผู้แจ้ง / สังกัด</th>
+                                    <th class="p-3">ชื่อผลงานวิจัย</th>
+                                    <th class="p-3 text-center">เอกสารแนบ</th>
+                                    <th class="p-3 text-center">ผู้พิจารณาอนุมัติ</th>
+                                    <th class="p-3 text-center">ผลการพิจารณา</th>
+                                    <th class="p-3 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr v-for="item in filteredRecords" :key="item.id" class="hover:bg-slate-50 transition">
+                                    <td class="p-3 font-semibold text-slate-800">{{ item.admin_review?.receipt_no || '-' }}</td>
+                                    <td class="p-3 text-slate-600">{{ item.admin_review?.receipt_date || item.created_at }}</td>
+                                    <td class="p-3">
+                                        <div class="font-bold text-slate-800">{{ item.notifier_name }}</div>
+                                        <div class="text-[11px] text-slate-500">{{ item.position_group }}</div>
+                                    </td>
+                                    <td class="p-3 max-w-xs">
+                                        <div class="font-medium text-slate-800 line-clamp-1">{{ item.title_th }}</div>
+                                        <div class="text-[11px] text-slate-400 italic line-clamp-1" v-if="item.title_en">{{ item.title_en }}</div>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <div class="flex justify-center gap-1">
+                                            <span v-if="item.attached_files?.abstract" title="บทคัดย่อ" @click="openFile(item.attached_files.abstract)" class="cursor-pointer text-teal-600 hover:text-teal-800">
+                                                <i class="fa-solid fa-file-pdf"></i>
+                                            </span>
+                                            <span v-if="item.attached_files?.presentation" title="หลักฐานการนำเสนอ" @click="openFile(item.attached_files.presentation)" class="cursor-pointer text-blue-600 hover:text-blue-800">
+                                                <i class="fa-solid fa-file-powerpoint"></i>
+                                            </span>
+                                            <span v-if="item.attached_files?.publication" title="หลักฐานการตีพิมพ์" @click="openFile(item.attached_files.publication)" class="cursor-pointer text-purple-600 hover:text-purple-800">
+                                                <i class="fa-solid fa-file-word"></i>
+                                            </span>
+                                            <span v-if="item.attached_files?.other" title="อื่น ๆ" @click="openFile(item.attached_files.other)" class="cursor-pointer text-amber-600 hover:text-amber-800">
+                                                <i class="fa-solid fa-paperclip"></i>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <div class="font-semibold text-slate-700">{{ item.admin_review?.approver_name || '-' }}</div>
+                                        <div class="text-[10px] text-slate-500" v-if="item.admin_review?.approver_position">{{ item.admin_review.approver_position }}</div>
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <span v-if="item.admin_review?.result === 'อนุมัติ'" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                                            อนุมัติ ๑,๐๐๐ บาท
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ให้แก้ไข'" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                                            ให้แก้ไขภายใน 7 วัน
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ไม่อนุมัติ'" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                                            ไม่อนุมัติ
+                                        </span>
+                                        <span v-else-if="item.admin_review?.result === 'ข้อมูลซ้ำ'" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800">
+                                            ข้อมูลซ้ำ
+                                        </span>
+                                        <span v-else class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
+                                            รอดำเนินการ
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-center space-x-1">
+                                        <button @click="openItemDetail(item)" class="px-2 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-[11px] font-medium transition">
+                                            <i class="fa-solid fa-eye me-1"></i>ดู/พิจารณา
+                                        </button>
+                                        <button @click="deleteRecord(item.id)" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-medium transition">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="filteredRecords.length === 0">
+                                    <td colspan="8" class="p-8 text-center text-slate-400">ไม่พบข้อมูลรายการแจ้งผลงาน</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- APPROVER MANAGEMENT MODAL -->
+        <div v-if="showApproverModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-slate-200">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-user-gear text-teal-600"></i>
+                        <span>แต่งตั้งและจัดการรายชื่อผู้มีสิทธิ์อนุมัติ / คณะกรรมการ</span>
+                    </h3>
+                    <button @click="showApproverModal = false" class="text-slate-400 hover:text-slate-600 transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Add New Approver Form -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-plus text-teal-600"></i>
+                        <span>เพิ่มผู้มีสิทธิ์อนุมัติใหม่</span>
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ชื่อ-นามสกุล (พร้อมคำนำหน้า)</label>
+                            <input v-model="newApprover.name" type="text" placeholder="เช่น นพ.สมชาย ใจดี" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">ตำแหน่งในกรรมการ/ผู้มีอำนาจ</label>
+                            <input v-model="newApprover.position" type="text" placeholder="เช่น ประธานคณะกรรมการวิจัย ศศค." class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-teal-500">
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-1">
+                        <button @click="addApprover" class="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> บันทึกเพิ่มรายชื่อ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Approver List -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-700">รายชื่อผู้มีสิทธิ์อนุมัติปัจจุบัน ({{ approversList.length }})</span>
+                        <span class="text-[10px] text-slate-400">* เครื่องหมาย ⭐ หมายถึงค่าเริ่มต้นในการลงชื่อ</span>
+                    </div>
+
+                    <div class="max-h-60 overflow-y-auto space-y-2 pr-1">
+                        <div v-for="approver in approversList" :key="approver.id" class="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-slate-300 transition">
+                            <div class="space-y-0.5">
+                                <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                                    <span>{{ approver.name }}</span>
+                                    <span v-if="approver.isDefault" class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5">
+                                        <i class="fa-solid fa-star text-amber-500 text-[9px]"></i> ค่าเริ่มต้น
+                                    </span>
+                                </div>
+                                <div class="text-[11px] text-slate-500">{{ approver.position }}</div>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button v-if="!approver.isDefault" @click="setDefaultApprover(approver.id)" title="ตั้งเป็นค่าเริ่มต้น" class="p-1.5 text-slate-400 hover:text-amber-500 transition">
+                                    <i class="fa-regular fa-star text-sm"></i>
+                                </button>
+                                <button @click="deleteApprover(approver.id)" title="ลบรายชื่อ" class="p-1.5 text-slate-400 hover:text-rose-600 transition">
+                                    <i class="fa-solid fa-trash-can text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="approversList.length === 0" class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl">
+                            ยังไม่มีผู้มีสิทธิ์อนุมัติในระบบ กรุณาเพิ่มข้อมูลด้านบน
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-200 flex justify-end">
+                    <button @click="showApproverModal = false" class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition">
+                        ปิดหน้าต่าง
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PREVIEW MODAL / OFFICIAL FORM REVIEW -->
+        <div v-if="showPreviewModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex justify-center items-center p-2 sm:p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full my-auto overflow-hidden border border-slate-200 flex flex-col max-h-[95vh]">
+                
+                <!-- Modal Top Header -->
+                <div class="bg-slate-800 text-white px-6 py-3 flex justify-between items-center shrink-0">
+                    <h3 class="text-sm sm:text-base font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass text-amber-400"></i>
+                        <span>หน้าพรีวิวตรวจสอบข้อมูลแบบฟอร์ม</span>
+                    </h3>
+                    <button @click="showPreviewModal = false" class="text-slate-400 hover:text-white transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Printable Paper Container (A4 Layout Matching PDF) -->
+                <div class="flex-grow overflow-y-auto p-4 sm:p-8 bg-slate-100">
+                    
+                    <div id="pdf-export-template" class="pdf-page shadow-md text-slate-900">
+                        
+                        <!-- Form Header -->
+                        <div class="flex justify-between items-start mb-4 border-b pb-3 border-slate-300">
+                            <div class="w-2/3">
+                                <h2 class="text-base font-bold font-sarabun leading-tight">
+                                    แบบฟอร์มแจ้งข้อมูลผลงานวิจัย/นวัตกรรม เพื่อขอรับค่าตอบแทน
+                                </h2>
+                                <p class="text-xs font-sarabun text-slate-700 mt-1">
+                                    ประจำปีงบประมาณ <span class="border-b border-dotted border-black px-2 font-bold">{{ activePreviewData.fiscal_year }}</span>
+                                </p>
+                                <p class="text-[10pt] font-sarabun text-slate-600 italic">
+                                    (แนบท้ายประกาศศูนย์แพทยศาสตรศึกษาชั้นคลินิก โรงพยาบาลมหาราชนครราชสีมา)
+                                </p>
+                            </div>
+                            <div class="w-1/3 border border-slate-400 p-2 text-xs font-sarabun rounded">
+                                <div class="flex items-center gap-1">
+                                    <span>เลขรับที่</span>
+                                    <input v-if="isAdmin" v-model="activePreviewData.admin_review.receipt_no" type="text" class="border-b border-slate-400 w-full px-1 text-xs outline-none">
+                                    <span v-else class="font-bold border-b border-dotted border-black flex-grow text-center">{{ activePreviewData.admin_review?.receipt_no || '...............' }}</span>
+                                </div>
+                                <div class="flex items-center gap-1 mt-1">
+                                    <span>วันที่รับ</span>
+                                    <input v-if="isAdmin" v-model="activePreviewData.admin_review.receipt_date" type="text" class="border-b border-slate-400 w-full px-1 text-xs outline-none">
+                                    <span v-else class="font-bold border-b border-dotted border-black flex-grow text-center">{{ activePreviewData.admin_review?.receipt_date || '...............' }}</span>
+                                </div>
+                                <div class="text-[9pt] text-slate-500 text-right mt-1">(เจ้าหน้าที่กรอก)</div>
+                            </div>
+                        </div>
+
+                        <!-- Section 1 Preview -->
+                        <div class="mb-4">
+                            <div class="font-bold text-sm bg-slate-200 px-2 py-1 mb-2 font-sarabun">ส่วนที่ ๑ : ข้อมูลผู้แจ้ง</div>
+                            <table class="pdf-table text-xs">
+                                <tr>
+                                    <td class="font-bold w-1/4">ชื่อ-สกุล</td>
+                                    <td>{{ activePreviewData.notifier_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">ตำแหน่ง / กลุ่มงาน</td>
+                                    <td>{{ activePreviewData.position_group }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">โทรศัพท์ / อีเมล</td>
+                                    <td>{{ activePreviewData.phone_email }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">สถานะในผลงาน</td>
+                                    <td>
+                                        <span class="checkbox-box">{{ activePreviewData.author_status === 'ผู้วิจัยหลัก' ? '✓' : '' }}</span> ผู้วิจัยหลัก &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.author_status === 'ผู้วิจัยร่วมที่ได้รับมอบหมาย' ? '✓' : '' }}</span> ผู้วิจัยร่วมที่ได้รับมอบหมาย
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Section 2 Preview -->
+                        <div class="mb-4">
+                            <div class="font-bold text-sm bg-slate-200 px-2 py-1 mb-2 font-sarabun">ส่วนที่ ๒ : ข้อมูลผลงาน</div>
+                            <table class="pdf-table text-xs">
+                                <tr>
+                                    <td class="font-bold w-1/3">๑. ชื่อผลงาน</td>
+                                    <td>
+                                        <div><b>(ไทย)</b> {{ activePreviewData.title_th }}</div>
+                                        <div v-if="activePreviewData.title_en"><b>(อังกฤษ)</b> {{ activePreviewData.title_en }}</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๒. ประเภท</td>
+                                    <td>
+                                        <span class="checkbox-box">{{ activePreviewData.work_type?.med_ed ? '✓' : '' }}</span> Med-ed &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.work_type?.clinic ? '✓' : '' }}</span> Clinic &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.work_type?.innovation ? '✓' : '' }}</span> นวัตกรรม
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๓. สถานะ</td>
+                                    <td>{{ activePreviewData.work_status }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๔. ประเภทการนำเสนอ</td>
+                                    <td>
+                                        <span class="checkbox-box">{{ activePreviewData.presentation_type === 'Oral' ? '✓' : '' }}</span> Oral &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.presentation_type === 'Poster' ? '✓' : '' }}</span> Poster &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.presentation_type === 'อื่น ๆ' ? '✓' : '' }}</span> อื่น ๆ &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.presentation_type === 'ไม่มี' ? '✓' : '' }}</span> ไม่มี
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๕. คำสำคัญ (๓-๕ คำ)</td>
+                                    <td>{{ activePreviewData.keywords || '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๖. ชื่อผู้วิจัยทั้งหมด</td>
+                                    <td>
+                                        <div v-for="(auth, i) in activePreviewData.authors" :key="i">
+                                            {{ i+1 }}. {{ auth.name }} <span v-if="auth.affiliation">({{ auth.affiliation }})</span> - {{ auth.percentage }}%
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๗. ผู้นำเสนอ</td>
+                                    <td>{{ activePreviewData.presenter_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๘. ชื่อการประชุม / สถานที่</td>
+                                    <td>
+                                        {{ activePreviewData.conference_name_place }} 
+                                        <span v-if="activePreviewData.conference_format">({{ activePreviewData.conference_format }})</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๙. ลิงก์ (Link) บทคัดย่อ</td>
+                                    <td class="break-all text-blue-800">{{ activePreviewData.abstract_link || '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๑๐. ชื่อวารสารที่ตีพิมพ์</td>
+                                    <td>{{ activePreviewData.journal_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๑๑. ลิงก์ (Link) บทความ / DOI</td>
+                                    <td class="break-all text-blue-800">{{ activePreviewData.article_doi_link || '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๑๒. ปี ค.ศ. ของผลงาน</td>
+                                    <td>{{ activePreviewData.work_year_ad }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">๑๓. การสนับสนุนจาก ศศค.</td>
+                                    <td>
+                                        <span class="checkbox-box">{{ activePreviewData.support_from_mec?.budget ? '✓' : '' }}</span> งบประมาณ &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.support_from_mec?.personnel ? '✓' : '' }}</span> บุคลากร &nbsp;&nbsp;
+                                        <span class="checkbox-box">{{ activePreviewData.support_from_mec?.none ? '✓' : '' }}</span> ไม่ได้รับ
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Section 3 Preview -->
+                        <div class="mb-4">
+                            <div class="font-bold text-sm bg-slate-200 px-2 py-1 mb-2 font-sarabun">ส่วนที่ ๓ : คำรับรองของผู้แจ้ง</div>
+                            <div class="text-xs space-y-1 mb-3">
+                                <div><span class="checkbox-box">{{ activePreviewData.certifications?.never_applied ? '✓' : '' }}</span> ผลงานนี้ ไม่เคยยื่นขอรับทุนสนับสนุนการวิจัยจากแหล่งทุนใดมาก่อน ทั้งภายในและภายนอกหน่วยงาน</div>
+                                <div><span class="checkbox-box">{{ activePreviewData.certifications?.never_rewarded ? '✓' : '' }}</span> ผลงานนี้ไม่เคยได้รับค่าตอบแทน/เงินรางวัลจากศูนย์แพทยศาสตรศึกษาชั้นคลินิกมาก่อน</div>
+                                <div><span class="checkbox-box">{{ activePreviewData.certifications?.no_duplicate_author ? '✓' : '' }}</span> ผลงานนี้ยังไม่มีผู้วิจัยร่วมท่านอื่นยื่นแจ้งข้อมูลเรื่องเดียวกัน</div>
+                                <div><span class="checkbox-box">{{ activePreviewData.certifications?.truthful ? '✓' : '' }}</span> ข้อมูลที่แจ้งเป็นความจริงทุกประการ หากเป็นเท็จ ยินยอมให้เรียกคืนค่าตอบแทนทั้งจำนวนตามประกาศ</div>
+                            </div>
+
+                            <div class="flex justify-between items-end border-t pt-2 text-xs">
+                                <div>
+                                    <div class="font-bold mb-1">เอกสารแนบ:</div>
+                                    <div class="space-x-2">
+                                        <span><span class="checkbox-box">{{ activePreviewData.attached_files?.abstract ? '✓' : '' }}</span> บทคัดย่อ/โครงร่าง</span>
+                                        <span><span class="checkbox-box">{{ activePreviewData.attached_files?.presentation ? '✓' : '' }}</span> หลักฐานการนำเสนอ</span>
+                                        <span><span class="checkbox-box">{{ activePreviewData.attached_files?.publication ? '✓' : '' }}</span> หลักฐานการตีพิมพ์</span>
+                                        <span><span class="checkbox-box">{{ activePreviewData.attached_files?.other ? '✓' : '' }}</span> อื่น ๆ {{ activePreviewData.attached_files_other_detail ? '('+activePreviewData.attached_files_other_detail+')' : '' }}</span>
+                                    </div>
+                                </div>
+                                <div class="text-center w-1/3">
+                                    <div class="mb-6">ลงชื่อ ........................................................... ผู้แจ้ง</div>
+                                    <div>( {{ activePreviewData.notifier_name || '...........................................................' }} )</div>
+                                    <div class="mt-1">วันที่ {{ activePreviewData.created_at || '......../......../........' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section 4 (Admin Evaluation) -->
+                        <div class="border-2 border-slate-400 p-3 rounded text-xs">
+                            <div class="font-bold text-sm border-b border-slate-300 pb-1 mb-2 font-sarabun">ส่วนที่ ๔ : สำหรับคณะกรรมการ / ผู้มีสิทธิ์อนุมัติ</div>
+                            
+                            <div class="grid grid-cols-2 gap-2 mb-3">
+                                <div>
+                                    <b>รายการตรวจสอบ:</b>
+                                    <div class="mt-1 space-y-1">
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.check_complete ? '✓' : '' }}</span> ข้อมูลครบถ้วน &ge; ๘๐%</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.check_traceable ? '✓' : '' }}</span> หลักฐานตรวจสอบย้อนกลับได้</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.check_qualifications ? '✓' : '' }}</span> คุณสมบัติตามข้อ ๔ ครบถ้วน</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.check_not_duplicate ? '✓' : '' }}</span> ไม่แจ้งซ้ำกับผลงานที่เคยแจ้ง</div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <b>ผลการพิจารณา:</b>
+                                    <div class="mt-1 space-y-1">
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.result === 'อนุมัติ' ? '✓' : '' }}</span> อนุมัติ ๑,๐๐๐ บาท</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.result === 'ให้แก้ไข' ? '✓' : '' }}</span> ให้แก้ไขภายใน ๗ วันทำการ</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.result === 'ไม่อนุมัติ' ? '✓' : '' }}</span> ไม่อนุมัติ เหตุผล: {{ activePreviewData.admin_review?.reason || '.....................' }}</div>
+                                        <div><span class="checkbox-box">{{ activePreviewData.admin_review?.result === 'ข้อมูลซ้ำ' ? '✓' : '' }}</span> ข้อมูลซ้ำ</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center border-t border-slate-300 pt-2">
+                                <div>
+                                    <b>สถานะการผ่าน:</b> 
+                                    <span class="ml-2"><span class="checkbox-box">{{ activePreviewData.admin_review?.passed ? '✓' : '' }}</span> ผ่าน</span>
+                                    <span class="ml-2"><span class="checkbox-box">{{ activePreviewData.admin_review?.passed === false ? '✓' : '' }}</span> ไม่ผ่าน</span>
+                                </div>
+                                <div class="text-center min-w-[220px]">
+                                    <div class="mb-5">ลงชื่อ ...........................................................</div>
+                                    <div>( {{ activePreviewData.admin_review?.approver_name || '...........................................................' }} )</div>
+                                    <div class="text-[9pt] text-slate-700" v-if="activePreviewData.admin_review?.approver_position">
+                                        {{ activePreviewData.admin_review.approver_position }}
+                                    </div>
+                                    <div class="mt-1">วันที่ {{ activePreviewData.admin_review?.receipt_date || '......../......../........' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Editable Admin Panel inside Preview Modal if viewing in Admin mode -->
+                    <div v-if="isAdmin" class="mt-6 bg-amber-50 p-5 rounded-xl border border-amber-300 space-y-4">
+                        <h4 class="text-sm font-bold text-amber-900 border-b border-amber-200 pb-2 flex items-center justify-between">
+                            <span class="flex items-center gap-2">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                                สำหรับเจ้าหน้าที่ / คณะกรรมการบันทึกส่วนที่ ๔
+                            </span>
+                            <button @click="showApproverModal = true" class="text-xs bg-amber-200 hover:bg-amber-300 text-amber-900 px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1">
+                                <i class="fa-solid fa-user-gear"></i> จัดการรายชื่อผู้มีสิทธิ์อนุมัติ
+                            </button>
+                        </h4>
+
+                        <!-- Select Approver & Position -->
+                        <div class="bg-white p-3 rounded-lg border border-amber-200 space-y-2 text-xs">
+                            <label class="font-bold text-slate-800 block">เลือกผู้ลงนามอนุมัติ / กรรมการผู้พิจารณา:</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <span class="text-[11px] text-slate-500">เลือกจากรายชื่อที่แต่งตั้งไว้:</span>
+                                    <select @change="onSelectApproverChange($event)" class="w-full mt-1 px-3 py-1.5 border border-slate-300 rounded-lg text-xs outline-none focus:ring-2 focus:ring-amber-500">
+                                        <option value="">-- เลือกผู้มีสิทธิ์อนุมัติ --</option>
+                                        <option v-for="appr in approversList" :key="appr.id" :value="appr.id" :selected="activePreviewData.admin_review?.approver_name === appr.name">
+                                            {{ appr.name }} ({{ appr.position }})
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <span class="text-[11px] text-slate-500">ชื่อ-สกุล ผู้ลงนาม:</span>
+                                        <input v-model="activePreviewData.admin_review.approver_name" type="text" placeholder="ชื่อ-สกุล ผู้ลงนาม" class="w-full mt-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none">
+                                    </div>
+                                    <div>
+                                        <span class="text-[11px] text-slate-500">ตำแหน่ง:</span>
+                                        <input v-model="activePreviewData.admin_review.approver_position" type="text" placeholder="ตำแหน่งผู้ลงนาม" class="w-full mt-1 px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                            <div class="space-y-2">
+                                <label class="font-bold text-slate-700 block">รายการตรวจสอบ</label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" v-model="activePreviewData.admin_review.check_complete" class="rounded text-amber-600">
+                                    <span>ข้อมูลครบถ้วน &ge; 80%</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" v-model="activePreviewData.admin_review.check_traceable" class="rounded text-amber-600">
+                                    <span>หลักฐานตรวจสอบย้อนกลับได้</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" v-model="activePreviewData.admin_review.check_qualifications" class="rounded text-amber-600">
+                                    <span>คุณสมบัติตามข้อ ๔ ครบถ้วน</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" v-model="activePreviewData.admin_review.check_not_duplicate" class="rounded text-amber-600">
+                                    <span>ไม่แจ้งซ้ำกับผลงานที่เคยแจ้ง</span>
+                                </label>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="font-bold text-slate-700 block">ผลการพิจารณา</label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="activePreviewData.admin_review.result" value="อนุมัติ" class="text-amber-600">
+                                    <span>อนุมัติ ๑,๐๐๐ บาท</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="activePreviewData.admin_review.result" value="ให้แก้ไข" class="text-amber-600">
+                                    <span>ให้แก้ไขภายใน ๗ วันทำการ</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="activePreviewData.admin_review.result" value="ไม่อนุมัติ" class="text-amber-600">
+                                    <span>ไม่อนุมัติ</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" v-model="activePreviewData.admin_review.result" value="ข้อมูลซ้ำ" class="text-amber-600">
+                                    <span>ข้อมูลซ้ำ</span>
+                                </label>
+                                <input v-if="activePreviewData.admin_review.result === 'ไม่อนุมัติ'" v-model="activePreviewData.admin_review.reason" type="text" placeholder="ระบุเหตุผลการไม่อนุมัติ" class="w-full px-2 py-1 border border-amber-300 rounded text-xs outline-none">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end pt-2">
+                            <button @click="saveAdminReview" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition">
+                                <i class="fa-solid fa-floppy-disk me-1"></i> บันทึกผลการพิจารณา ส่วนที่ ๔
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Modal Bottom Action Buttons -->
+                <div class="bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center flex-wrap gap-2 shrink-0">
+                    <button @click="showPreviewModal = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold transition">
+                        <i class="fa-solid fa-arrow-left me-1"></i> ย้อนกลับไปแก้ไข
+                    </button>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Export PDF Button -->
+                        <button @click="exportToPDF" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-pdf"></i>
+                            <span>ส่งออกเป็น PDF</span>
+                        </button>
+
+                        <!-- Final Submission Button (Only in submission preview mode) -->
+                        <button v-if="isPreviewModeSubmission" @click="confirmAndSaveSubmission" class="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>ยืนยันการบันทึกข้อมูลเข้าระบบ</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ADMIN LOGIN / CHANGE PIN MODAL -->
+        <div v-if="showPinModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+            <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+                <div class="text-center space-y-1">
+                    <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-800">ยืนยันตัวตนเจ้าหน้าที่ / เปลี่ยนรหัส PIN</h3>
+                    <p class="text-xs text-slate-500">กรุณากรอกรหัสผ่าน PIN เพื่อดำเนินการ</p>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">รหัส PIN ปัจจุบัน</label>
+                        <input v-model="pinInput" type="password" maxlength="10" placeholder="กรอกรหัส PIN" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-center text-lg tracking-widest outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+
+                    <div v-if="isChangingPin" class="space-y-2 border-t pt-3 border-slate-200">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">รหัส PIN ใหม่</label>
+                            <input v-model="newPinInput" type="password" maxlength="10" placeholder="กรอกรหัส PIN ใหม่" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-center text-lg tracking-widest outline-none focus:ring-2 focus:ring-amber-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2 pt-2">
+                    <button v-if="!isChangingPin" @click="verifyAdminPin" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition">
+                        เข้าสู่ระบบ
+                    </button>
+                    
+                    <button v-if="!isChangingPin && isAdmin" @click="isChangingPin = true" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">
+                        ต้องการเปลี่ยนรหัสผ่าน PIN
+                    </button>
+
+                    <button v-if="isChangingPin" @click="changeAdminPin" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
+                        บันทึกเปลี่ยนรหัสผ่าน PIN ใหม่
+                    </button>
+
+                    <button @click="closePinModal" class="w-full py-2 text-slate-400 hover:text-slate-600 text-xs transition">
+                        ยกเลิก
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div v-if="toast.show" class="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-white text-xs font-medium flex items-center gap-2 transition-all duration-300" :class="toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'">
+            <i :class="toast.type === 'success' ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'"></i>
+            <span>{{ toast.message }}</span>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-slate-800 text-slate-400 py-4 text-center text-xs border-t border-slate-700 mt-auto">
+            ศูนย์แพทยศาสตรศึกษาชั้นคลินิก โรงพยาบาลมหาราชนครราชสีมา &copy; 2026 - All Rights Reserved.
+        </footer>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                // Application State
+                const currentTab = ref('form');
+                const isAdmin = ref(false);
+                const showPreviewModal = ref(false);
+                const isPreviewModeSubmission = ref(false);
+                const showPinModal = ref(false);
+                const isChangingPin = ref(false);
+                const showApproverModal = ref(false);
+                
+                const pinInput = ref('');
+                const newPinInput = ref('');
+                const storedPin = ref('1234'); // Default PIN
+                const searchQuery = ref('');
+
+                // Approvers List & Form State
+                const defaultApproversList = [
+                    { id: '1', name: 'ศ.ดร.นพ. สมชาย รักดี', position: 'ประธานคณะกรรมการวิจัย ศศค.', isDefault: true },
+                    { id: '2', name: 'ผศ.ดร.พญ. วิภาวี มีสุข', position: 'ผู้อำนวยการศูนย์แพทยศาสตรศึกษาชั้นคลินิก', isDefault: false }
+                ];
+                const approversList = ref([]);
+                const newApprover = ref({ name: '', position: '' });
+
+                // Notification Toast
+                const toast = ref({ show: false, message: '', type: 'success' });
+
+                const showToast = (msg, type = 'success') => {
+                    toast.value = { show: true, message: msg, type };
+                    setTimeout(() => toast.value.show = false, 3500);
+                };
+
+                // Helper: Generate Auto Receipt Number in format YY/MM-XXX
+                const generateAutoReceiptNo = () => {
+                    const now = new Date();
+                    const thaiYearTwoDigits = String(now.getFullYear() + 543).slice(-2);
+                    const monthTwoDigits = String(now.getMonth() + 1).padStart(2, '0');
+                    const seqNumber = String(records.value.length + 1).padStart(3, '0');
+                    return `${thaiYearTwoDigits}/${monthTwoDigits}-${seqNumber}`;
+                };
+
+                // Helper: Today formatted string
+                const getTodayFormatted = () => {
+                    const now = new Date();
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const year = now.getFullYear() + 543;
+                    return `${day}/${month}/${year}`;
+                };
+
+                // Get Default Approver from list
+                const getDefaultApprover = () => {
+                    const foundDefault = approversList.value.find(a => a.isDefault);
+                    if (foundDefault) return foundDefault;
+                    return approversList.value.length > 0 ? approversList.value[0] : { name: '', position: '' };
+                };
+
+                // Form Reactive Data Structure
+                const createEmptyFormData = () => {
+                    const defApprover = getDefaultApprover();
+                    return {
+                        id: Date.now().toString(),
+                        fiscal_year: new Date().getFullYear() + 543,
+                        created_at: getTodayFormatted(),
+                        notifier_name: '',
+                        position_group: '',
+                        phone_email: '',
+                        author_status: 'ผู้วิจัยหลัก',
+                        title_th: '',
+                        title_en: '',
+                        work_type: { med_ed: false, clinic: false, innovation: false },
+                        work_status: 'วิจัยสำเร็จ นำเสนอ',
+                        presentation_type: 'Oral',
+                        keywords: '',
+                        authors: [{ name: '', affiliation: '', percentage: 100 }],
+                        presenter_name: '',
+                        conference_name_place: '',
+                        conference_format: 'Onsite',
+                        abstract_link: '',
+                        journal_name: '',
+                        article_doi_link: '',
+                        work_year_ad: new Date().getFullYear(),
+                        support_from_mec: { budget: false, personnel: false, none: true },
+                        certifications: {
+                            never_applied: false,
+                            never_rewarded: false,
+                            no_duplicate_author: false,
+                            truthful: false
+                        },
+                        attached_files: {
+                            abstract: null,
+                            presentation: null,
+                            publication: null,
+                            other: null
+                        },
+                        attached_files_other_detail: '',
+                        admin_review: {
+                            receipt_no: '',
+                            receipt_date: getTodayFormatted(),
+                            check_complete: true,
+                            check_traceable: true,
+                            check_qualifications: true,
+                            check_not_duplicate: true,
+                            result: '',
+                            reason: '',
+                            passed: true,
+                            approver_name: defApprover ? defApprover.name : '',
+                            approver_position: defApprover ? defApprover.position : ''
+                        }
+                    };
+                };
+
+                const formData = ref(createEmptyFormData());
+                const activePreviewData = ref(createEmptyFormData());
+                const records = ref([]);
+
+                // Computed total percentage
+                const totalPercentage = computed(() => {
+                    return formData.value.authors.reduce((sum, item) => sum + (Number(item.percentage) || 0), 0);
+                });
+
+                // Computed Dashboard Stats
+                const dashboardStats = computed(() => {
+                    const total = records.value.length;
+                    const approved = records.value.filter(r => r.admin_review?.result === 'อนุมัติ').length;
+                    const pending = records.value.filter(r => !r.admin_review?.result || r.admin_review?.result === 'รอดำเนินการ').length;
+                    const revision = records.value.filter(r => r.admin_review?.result === 'ให้แก้ไข').length;
+                    const rejected = records.value.filter(r => r.admin_review?.result === 'ไม่อนุมัติ').length;
+                    const duplicate = records.value.filter(r => r.admin_review?.result === 'ข้อมูลซ้ำ').length;
+
+                    const medEd = records.value.filter(r => r.work_type?.med_ed).length;
+                    const clinic = records.value.filter(r => r.work_type?.clinic).length;
+                    const innovation = records.value.filter(r => r.work_type?.innovation).length;
+
+                    return { total, approved, pending, revision, rejected, duplicate, medEd, clinic, innovation };
+                });
+
+                // Filtered records for Admin & User List Table
+                const filteredRecords = computed(() => {
+                    if (!searchQuery.value) return records.value;
+                    const q = searchQuery.value.toLowerCase();
+                    return records.value.filter(r => 
+                        (r.notifier_name && r.notifier_name.toLowerCase().includes(q)) ||
+                        (r.title_th && r.title_th.toLowerCase().includes(q)) ||
+                        (r.title_en && r.title_en.toLowerCase().includes(q)) ||
+                        (r.position_group && r.position_group.toLowerCase().includes(q)) ||
+                        (r.admin_review?.receipt_no && r.admin_review.receipt_no.toLowerCase().includes(q)) ||
+                        (r.admin_review?.approver_name && r.admin_review.approver_name.toLowerCase().includes(q))
+                    );
+                });
+
+                // Check Duplicate Title helper
+                const isDuplicateTitle = (titleTh, titleEn, currentId = null) => {
+                    const cleanTh = (titleTh || '').trim().toLowerCase();
+                    const cleanEn = (titleEn || '').trim().toLowerCase();
+                    if (!cleanTh && !cleanEn) return false;
+
+                    return records.value.some(r => {
+                        if (currentId && r.id === currentId) return false;
+                        const existTh = (r.title_th || '').trim().toLowerCase();
+                        const existEn = (r.title_en || '').trim().toLowerCase();
+
+                        const matchTh = cleanTh && existTh && cleanTh === existTh;
+                        const matchEn = cleanEn && existEn && cleanEn === existEn;
+                        return matchTh || matchEn;
+                    });
+                };
+
+                // Load Data on Mount
+                onMounted(() => {
+                    // Load Approvers
+                    const savedApprovers = localStorage.getItem('mec_approvers_list');
+                    if (savedApprovers) {
+                        try { approversList.value = JSON.parse(savedApprovers); } catch(e) { approversList.value = defaultApproversList; }
+                    } else {
+                        approversList.value = defaultApproversList;
+                        saveApproversToStorage();
+                    }
+
+                    // Load Records
+                    const savedRecords = localStorage.getItem('mec_research_records');
+                    if (savedRecords) {
+                        try { records.value = JSON.parse(savedRecords); } catch (e) {}
+                    }
+                    const savedPin = localStorage.getItem('mec_admin_pin');
+                    if (savedPin) storedPin.value = savedPin;
+
+                    // Initialize formData
+                    formData.value = createEmptyFormData();
+                });
+
+                const saveRecordsToStorage = () => {
+                    localStorage.setItem('mec_research_records', JSON.stringify(records.value));
+                };
+
+                const saveApproversToStorage = () => {
+                    localStorage.setItem('mec_approvers_list', JSON.stringify(approversList.value));
+                };
+
+                // Approvers Management Functions
+                const addApprover = () => {
+                    if (!newApprover.value.name.trim()) {
+                        showToast('กรุณากรอกชื่อ-นามสกุล ผู้มีสิทธิ์อนุมัติ', 'error');
+                        return;
+                    }
+                    const newItem = {
+                        id: Date.now().toString(),
+                        name: newApprover.value.name.trim(),
+                        position: newApprover.value.position.trim() || 'คณะกรรมการวิจัย ศศค.',
+                        isDefault: approversList.value.length === 0
+                    };
+                    approversList.value.push(newItem);
+                    saveApproversToStorage();
+                    newApprover.value = { name: '', position: '' };
+                    showToast('เพิ่มผู้มีสิทธิ์อนุมัติสำเร็จ');
+                };
+
+                const deleteApprover = (id) => {
+                    approversList.value = approversList.value.filter(a => a.id !== id);
+                    if (approversList.value.length > 0 && !approversList.value.some(a => a.isDefault)) {
+                        approversList.value[0].isDefault = true;
+                    }
+                    saveApproversToStorage();
+                    showToast('ลบรายชื่อผู้มีสิทธิ์อนุมัติแล้ว');
+                };
+
+                const setDefaultApprover = (id) => {
+                    approversList.value.forEach(a => {
+                        a.isDefault = (a.id === id);
+                    });
+                    saveApproversToStorage();
+                    showToast('ตั้งค่าผู้มีสิทธิ์อนุมัติเริ่มต้นสำเร็จ');
+                };
+
+                const onSelectApproverChange = (event) => {
+                    const selectedId = event.target.value;
+                    const found = approversList.value.find(a => a.id === selectedId);
+                    if (found) {
+                        activePreviewData.value.admin_review.approver_name = found.name;
+                        activePreviewData.value.admin_review.approver_position = found.position;
+                    }
+                };
+
+                // Author Row Management
+                const addAuthor = () => {
+                    formData.value.authors.push({ name: '', affiliation: '', percentage: 0 });
+                };
+
+                const removeAuthor = (index) => {
+                    formData.value.authors.splice(index, 1);
+                };
+
+                // File Upload Base64 Handler
+                const handleFileUpload = (event, category) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    if (file.size > 10 * 1024 * 1024) {
+                        showToast('ขนาดไฟล์เกิน 10MB กรุณาเลือกไฟล์ขนาดเล็กกว่านี้', 'error');
+                        event.target.value = '';
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        formData.value.attached_files[category] = {
+                            name: file.name,
+                            type: file.type,
+                            dataUrl: e.target.result
+                        };
+                        showToast(`แนบไฟล์ ${file.name} เรียบร้อยแล้ว`);
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                // Open/View Attached File
+                const openFile = (fileObj) => {
+                    if (!fileObj || !fileObj.dataUrl) {
+                        showToast('ไม่พบข้อมูลไฟล์', 'error');
+                        return;
+                    }
+                    const win = window.open();
+                    if (win) {
+                        win.document.write(`<iframe src="${fileObj.dataUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                    } else {
+                        showToast('เบราว์เซอร์บล็อกการเปิดหน้าต่างใหม่', 'error');
+                    }
+                };
+
+                // Trigger Preview Modal from Form
+                const triggerPreviewModal = () => {
+                    const activeCopy = JSON.parse(JSON.stringify(formData.value));
+                    
+                    // Generate Auto Receipt No YY/MM-XXX if not present
+                    if (!activeCopy.admin_review.receipt_no) {
+                        activeCopy.admin_review.receipt_no = generateAutoReceiptNo();
+                    }
+                    if (!activeCopy.admin_review.receipt_date) {
+                        activeCopy.admin_review.receipt_date = getTodayFormatted();
+                    }
+
+                    // Populate default approver if not filled
+                    if (!activeCopy.admin_review.approver_name) {
+                        const def = getDefaultApprover();
+                        activeCopy.admin_review.approver_name = def.name;
+                        activeCopy.admin_review.approver_position = def.position;
+                    }
+
+                    activePreviewData.value = activeCopy;
+                    isPreviewModeSubmission.value = true;
+                    showPreviewModal.value = true;
+                };
+
+                // Confirm and Save Final Submission
+                const confirmAndSaveSubmission = () => {
+                    const newRecord = JSON.parse(JSON.stringify(activePreviewData.value));
+                    newRecord.id = Date.now().toString();
+                    newRecord.created_at = getTodayFormatted();
+
+                    // Check for duplicate title
+                    if (isDuplicateTitle(newRecord.title_th, newRecord.title_en)) {
+                        newRecord.admin_review.result = 'ข้อมูลซ้ำ';
+                        newRecord.admin_review.passed = false;
+                        newRecord.admin_review.check_not_duplicate = false;
+                        newRecord.admin_review.reason = 'ตรวจพบชื่อผลงานวิจัยซ้ำกับในระบบ';
+                        showToast('ตรวจพบชื่อผลงานซ้ำในระบบ! บันทึกสถานะผลการพิจารณาเป็น "ข้อมูลซ้ำ"', 'error');
+                    } else {
+                        showToast('บันทึกข้อมูลผลงานวิจัยเข้าระบบเรียบร้อยแล้ว!');
+                    }
+
+                    records.value.unshift(newRecord);
+                    saveRecordsToStorage();
+
+                    showPreviewModal.value = false;
+                    formData.value = createEmptyFormData();
+                };
+
+                // Admin Functions
+                const openAdminAccess = () => {
+                    if (isAdmin.value) {
+                        currentTab.value = 'admin';
+                    } else {
+                        showPinModal.value = true;
+                    }
+                };
+
+                const verifyAdminPin = () => {
+                    if (pinInput.value === storedPin.value) {
+                        isAdmin.value = true;
+                        currentTab.value = 'admin';
+                        showPinModal.value = false;
+                        pinInput.value = '';
+                        showToast('เข้าสู่ระบบผู้ดูแลเรียบร้อยแล้ว');
+                    } else {
+                        showToast('รหัสผ่าน PIN ไม่ถูกต้อง', 'error');
+                    }
+                };
+
+                const logoutAdmin = () => {
+                    isAdmin.value = false;
+                    if (currentTab.value === 'admin') {
+                        currentTab.value = 'user_list';
+                    }
+                    showToast('ออกจากระบบเจ้าหน้าที่เรียบร้อยแล้ว');
+                };
+
+                const changeAdminPin = () => {
+                    if (pinInput.value !== storedPin.value) {
+                        showToast('รหัส PIN ปัจจุบันไม่ถูกต้อง', 'error');
+                        return;
+                    }
+                    if (!newPinInput.value || newPinInput.value.length < 4) {
+                        showToast('รหัส PIN ใหม่ต้องมีอย่างน้อย 4 หลัก', 'error');
+                        return;
+                    }
+                    storedPin.value = newPinInput.value;
+                    localStorage.setItem('mec_admin_pin', newPinInput.value);
+                    closePinModal();
+                    showToast('เปลี่ยนรหัสผ่าน PIN สำเร็จ');
+                };
+
+                const closePinModal = () => {
+                    showPinModal.value = false;
+                    isChangingPin.value = false;
+                    pinInput.value = '';
+                    newPinInput.value = '';
+                };
+
+                const openItemDetail = (item) => {
+                    const activeCopy = JSON.parse(JSON.stringify(item));
+                    if (!activeCopy.admin_review.approver_name) {
+                        const def = getDefaultApprover();
+                        activeCopy.admin_review.approver_name = def.name;
+                        activeCopy.admin_review.approver_position = def.position;
+                    }
+                    activePreviewData.value = activeCopy;
+                    isPreviewModeSubmission.value = false;
+                    showPreviewModal.value = true;
+                };
+
+                const saveAdminReview = () => {
+                    const index = records.value.findIndex(r => r.id === activePreviewData.value.id);
+                    if (index !== -1) {
+                        records.value[index].admin_review = JSON.parse(JSON.stringify(activePreviewData.value.admin_review));
+                        saveRecordsToStorage();
+                        showToast('บันทึกผลการพิจารณา ส่วนที่ ๔ เรียบร้อยแล้ว');
+                    }
+                };
+
+                const deleteRecord = (id) => {
+                    if (window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
+                        records.value = records.value.filter(r => r.id !== id);
+                        saveRecordsToStorage();
+                        showToast('ลบรายการเรียบร้อยแล้ว');
+                    }
+                };
+
+                // Data Backup JSON Export
+                const exportBackupJSON = () => {
+                    const backupObject = {
+                        records: records.value,
+                        approvers: approversList.value
+                    };
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObject, null, 2));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", `mec_research_backup_${new Date().toISOString().slice(0,10)}.json`);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                    showToast('ส่งออกไฟล์สำรองข้อมูล JSON สำเร็จ');
+                };
+
+                // Data Restore JSON Import
+                const importRestoreJSON = (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+                            if (Array.isArray(importedData)) {
+                                records.value = importedData;
+                                saveRecordsToStorage();
+                                showToast('เรียกคืนข้อมูลสำเร็จเรียบร้อย');
+                            } else if (importedData.records && Array.isArray(importedData.records)) {
+                                records.value = importedData.records;
+                                if (importedData.approvers && Array.isArray(importedData.approvers)) {
+                                    approversList.value = importedData.approvers;
+                                    saveApproversToStorage();
+                                }
+                                saveRecordsToStorage();
+                                showToast('เรียกคืนข้อมูลสำเร็จเรียบร้อย');
+                            } else {
+                                showToast('รูปแบบไฟล์ JSON ไม่ถูกต้อง', 'error');
+                            }
+                        } catch (err) {
+                            showToast('เกิดข้อผิดพลาดในการอ่านไฟล์ JSON', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                // Export Table to Excel
+                const exportToExcel = () => {
+                    const exportData = records.value.map(r => ({
+                        'เลขรับที่': r.admin_review?.receipt_no || '-',
+                        'วันที่รับ': r.admin_review?.receipt_date || r.created_at,
+                        'ชื่อผู้แจ้ง': r.notifier_name,
+                        'ตำแหน่ง/กลุ่มงาน': r.position_group,
+                        'โทรศัพท์/อีเมล': r.phone_email,
+                        'ชื่อผลงาน (ไทย)': r.title_th,
+                        'ชื่อผลงาน (อังกฤษ)': r.title_en || '-',
+                        'สถานะผลงาน': r.work_status,
+                        'การนำเสนอ': r.presentation_type,
+                        'วารสารที่ตีพิมพ์': r.journal_name || '-',
+                        'ปี ค.ศ.': r.work_year_ad,
+                        'ผู้พิจารณาอนุมัติ': r.admin_review?.approver_name || '-',
+                        'ตำแหน่งผู้พิจารณา': r.admin_review?.approver_position || '-',
+                        'ผลการพิจารณา': r.admin_review?.result || 'รอดำเนินการ'
+                    }));
+
+                    const worksheet = XLSX.utils.json_to_sheet(exportData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "ข้อมูลงานวิจัย");
+                    XLSX.writeFile(workbook, `รายการผลงานวิจัย_ศศค_${new Date().toISOString().slice(0,10)}.xlsx`);
+                    showToast('ส่งออกไฟล์ Excel เรียบร้อยแล้ว');
+                };
+
+                // Reliable PDF Export Fix
+                const exportToPDF = () => {
+                    const element = document.getElementById('pdf-export-template');
+                    if (!element) return;
+
+                    showToast('กำลังประมวลผลไฟล์ PDF...');
+
+                    const opt = {
+                        margin:       [8, 8, 8, 8],
+                        filename:     `แบบฟอร์มขอรับค่าตอบแทนวิจัย_${activePreviewData.value.notifier_name || 'doc'}.pdf`,
+                        image:        { type: 'jpeg', quality: 0.98 },
+                        html2canvas:  { scale: 2, useCORS: true, logging: false },
+                        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        showToast('ดาวน์โหลด PDF เรียบร้อยแล้ว');
+                    }).catch(err => {
+                        showToast('เกิดข้อผิดพลาดในการดาวน์โหลด PDF', 'error');
+                        console.error(err);
+                    });
+                };
+
+                return {
+                    currentTab,
+                    isAdmin,
+                    showPreviewModal,
+                    isPreviewModeSubmission,
+                    showPinModal,
+                    isChangingPin,
+                    showApproverModal,
+                    approversList,
+                    newApprover,
+                    pinInput,
+                    newPinInput,
+                    searchQuery,
+                    toast,
+                    formData,
+                    activePreviewData,
+                    records,
+                    filteredRecords,
+                    dashboardStats,
+                    totalPercentage,
+                    addAuthor,
+                    removeAuthor,
+                    handleFileUpload,
+                    openFile,
+                    triggerPreviewModal,
+                    confirmAndSaveSubmission,
+                    openAdminAccess,
+                    verifyAdminPin,
+                    logoutAdmin,
+                    changeAdminPin,
+                    closePinModal,
+                    openItemDetail,
+                    saveAdminReview,
+                    deleteRecord,
+                    addApprover,
+                    deleteApprover,
+                    setDefaultApprover,
+                    onSelectApproverChange,
+                    exportBackupJSON,
+                    importRestoreJSON,
+                    exportToExcel,
+                    exportToPDF
+                };
+            }
+        }).mount('#app');
+    </script>
+
+</body>
+</html>
