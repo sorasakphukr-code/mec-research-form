@@ -1383,6 +1383,7 @@
         createApp({
             setup() {
                 // Application State
+		const API_URL = 'https://script.google.com/macros/s/AKfycbzwHw5xO1TeCM1RryJbWrS1pJbBL8JFewfNI4kq1cX_aWZgB3ZogKmIdibLgwGYzYq4-A/exec'
                 const currentTab = ref('form');
                 const isAdmin = ref(false);
                 const showPreviewModal = ref(false);
@@ -1549,27 +1550,17 @@
                 };
 
                 // Load Data on Mount
-                onMounted(() => {
-                    // Load Approvers
-                    const savedApprovers = localStorage.getItem('mec_approvers_list');
-                    if (savedApprovers) {
-                        try { approversList.value = JSON.parse(savedApprovers); } catch(e) { approversList.value = defaultApproversList; }
-                    } else {
-                        approversList.value = defaultApproversList;
-                        saveApproversToStorage();
-                    }
-
-                    // Load Records
-                    const savedRecords = localStorage.getItem('mec_research_records');
-                    if (savedRecords) {
-                        try { records.value = JSON.parse(savedRecords); } catch (e) {}
-                    }
-                    const savedPin = localStorage.getItem('mec_admin_pin');
-                    if (savedPin) storedPin.value = savedPin;
-
-                    // Initialize formData
-                    formData.value = createEmptyFormData();
-                });
+               onMounted(async () => {
+  try {
+    const res = await fetch(`${API_URL}?action=getAll`);
+    const data = await res.json();
+    records.value = data.records || [];
+    approversList.value = data.approvers && data.approvers.length ? data.approvers : defaultApproversList;
+  } catch (err) {
+    showToast('ไม่สามารถโหลดข้อมูลจากเซิร์ฟเวอร์ได้', 'error');
+  }
+  formData.value = createEmptyFormData();
+});
 
                 const saveRecordsToStorage = () => {
                     localStorage.setItem('mec_research_records', JSON.stringify(records.value));
@@ -1580,22 +1571,14 @@
                 };
 
                 // Approvers Management Functions
-                const addApprover = () => {
-                    if (!newApprover.value.name.trim()) {
-                        showToast('กรุณากรอกชื่อ-นามสกุล ผู้มีสิทธิ์อนุมัติ', 'error');
-                        return;
-                    }
-                    const newItem = {
-                        id: Date.now().toString(),
-                        name: newApprover.value.name.trim(),
-                        position: newApprover.value.position.trim() || 'คณะกรรมการวิจัย ศศค.',
-                        isDefault: approversList.value.length === 0
-                    };
-                    approversList.value.push(newItem);
-                    saveApproversToStorage();
-                    newApprover.value = { name: '', position: '' };
-                    showToast('เพิ่มผู้มีสิทธิ์อนุมัติสำเร็จ');
-                };
+                const addApprover = async () => {
+  if (!newApprover.value.name.trim()) { showToast('กรุณากรอกชื่อ', 'error'); return; }
+  const newItem = { id: Date.now().toString(), name: newApprover.value.name.trim(), position: newApprover.value.position.trim() || 'คณะกรรมการวิจัย ศศค.', isDefault: approversList.value.length === 0 };
+  await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'addApprover', approver: newItem }) });
+  approversList.value.push(newItem);
+  newApprover.value = { name: '', position: '' };
+  showToast('เพิ่มผู้มีสิทธิ์อนุมัติสำเร็จ');
+};
 
                 const deleteApprover = (id) => {
                     approversList.value = approversList.value.filter(a => a.id !== id);
@@ -1633,41 +1616,36 @@
                 };
 
                 // File Upload Base64 Handler
-                const handleFileUpload = (event, category) => {
-                    const file = event.target.files[0];
-                    if (!file) return;
+                const handleFileUpload = async (event, category) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { showToast('ขนาดไฟล์เกิน 10MB', 'error'); return; }
 
-                    if (file.size > 10 * 1024 * 1024) {
-                        showToast('ขนาดไฟล์เกิน 10MB กรุณาเลือกไฟล์ขนาดเล็กกว่านี้', 'error');
-                        event.target.value = '';
-                        return;
-                    }
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        formData.value.attached_files[category] = {
-                            name: file.name,
-                            type: file.type,
-                            dataUrl: e.target.result
-                        };
-                        showToast(`แนบไฟล์ ${file.name} เรียบร้อยแล้ว`);
-                    };
-                    reader.readAsDataURL(file);
-                };
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const base64Data = e.target.result.split(',')[1];
+    showToast('กำลังอัปโหลดไฟล์...');
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'uploadFile', fileName: file.name, mimeType: file.type, base64Data })
+    });
+    const result = await res.json();
+    if (result.success) {
+      formData.value.attached_files[category] = { name: file.name, url: result.url };
+      showToast(`แนบไฟล์ ${file.name} เรียบร้อยแล้ว`);
+    } else {
+      showToast('อัปโหลดไฟล์ไม่สำเร็จ', 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+};
 
                 // Open/View Attached File
                 const openFile = (fileObj) => {
-                    if (!fileObj || !fileObj.dataUrl) {
-                        showToast('ไม่พบข้อมูลไฟล์', 'error');
-                        return;
-                    }
-                    const win = window.open();
-                    if (win) {
-                        win.document.write(`<iframe src="${fileObj.dataUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                    } else {
-                        showToast('เบราว์เซอร์บล็อกการเปิดหน้าต่างใหม่', 'error');
-                    }
-                };
+  if (!fileObj || !fileObj.url) { showToast('ไม่พบข้อมูลไฟล์', 'error'); return; }
+  window.open(fileObj.url, '_blank');
+};
+
 
                 // Trigger Preview Modal from Form
                 const triggerPreviewModal = () => {
@@ -1694,28 +1672,27 @@
                 };
 
                 // Confirm and Save Final Submission
-                const confirmAndSaveSubmission = () => {
-                    const newRecord = JSON.parse(JSON.stringify(activePreviewData.value));
-                    newRecord.id = Date.now().toString();
-                    newRecord.created_at = getTodayFormatted();
+                const confirmAndSaveSubmission = async () => {
+  const newRecord = JSON.parse(JSON.stringify(activePreviewData.value));
+  newRecord.id = Date.now().toString();
+  newRecord.created_at = getTodayFormatted();
 
-                    // Check for duplicate title
-                    if (isDuplicateTitle(newRecord.title_th, newRecord.title_en)) {
-                        newRecord.admin_review.result = 'ข้อมูลซ้ำ';
-                        newRecord.admin_review.passed = false;
-                        newRecord.admin_review.check_not_duplicate = false;
-                        newRecord.admin_review.reason = 'ตรวจพบชื่อผลงานวิจัยซ้ำกับในระบบ';
-                        showToast('ตรวจพบชื่อผลงานซ้ำในระบบ! บันทึกสถานะผลการพิจารณาเป็น "ข้อมูลซ้ำ"', 'error');
-                    } else {
-                        showToast('บันทึกข้อมูลผลงานวิจัยเข้าระบบเรียบร้อยแล้ว!');
-                    }
+  if (isDuplicateTitle(newRecord.title_th, newRecord.title_en)) {
+    newRecord.admin_review.result = 'ข้อมูลซ้ำ';
+    newRecord.admin_review.passed = false;
+    newRecord.admin_review.reason = 'ตรวจพบชื่อผลงานวิจัยซ้ำกับในระบบ';
+  }
 
-                    records.value.unshift(newRecord);
-                    saveRecordsToStorage();
+  await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'addRecord', record: newRecord })
+  });
 
-                    showPreviewModal.value = false;
-                    formData.value = createEmptyFormData();
-                };
+  records.value.unshift(newRecord);
+  showToast('บันทึกข้อมูลผลงานวิจัยเข้าระบบเรียบร้อยแล้ว!');
+  showPreviewModal.value = false;
+  formData.value = createEmptyFormData();
+};
 
                 // Admin Functions
                 const openAdminAccess = () => {
@@ -1780,22 +1757,26 @@
                     showPreviewModal.value = true;
                 };
 
-                const saveAdminReview = () => {
-                    const index = records.value.findIndex(r => r.id === activePreviewData.value.id);
-                    if (index !== -1) {
-                        records.value[index].admin_review = JSON.parse(JSON.stringify(activePreviewData.value.admin_review));
-                        saveRecordsToStorage();
-                        showToast('บันทึกผลการพิจารณา ส่วนที่ ๔ เรียบร้อยแล้ว');
-                    }
-                };
+                const saveAdminReview = async () => {
+  const index = records.value.findIndex(r => r.id === activePreviewData.value.id);
+  if (index !== -1) {
+    records.value[index].admin_review = JSON.parse(JSON.stringify(activePreviewData.value.admin_review));
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateRecord', record: records.value[index] })
+    });
+    showToast('บันทึกผลการพิจารณา ส่วนที่ ๔ เรียบร้อยแล้ว');
+  }
+};
 
-                const deleteRecord = (id) => {
-                    if (window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
-                        records.value = records.value.filter(r => r.id !== id);
-                        saveRecordsToStorage();
-                        showToast('ลบรายการเรียบร้อยแล้ว');
-                    }
-                };
+                const deleteRecord = async (id) => {
+  if (window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
+    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteRecord', id }) });
+    records.value = records.value.filter(r => r.id !== id);
+    showToast('ลบรายการเรียบร้อยแล้ว');
+  }
+};
+
 
                 // Data Backup JSON Export
                 const exportBackupJSON = () => {
