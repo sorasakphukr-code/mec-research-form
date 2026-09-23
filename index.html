@@ -1550,16 +1550,24 @@
                 };
 
                 // Load Data on Mount
-               onMounted(async () => {
-  try {
-    const res = await fetch(`${API_URL}?action=getAll`);
-    const data = await res.json();
-    records.value = data.records || [];
-    approversList.value = data.approvers && data.approvers.length ? data.approvers : defaultApproversList;
-  } catch (err) {
-    showToast('ไม่สามารถโหลดข้อมูลจากเซิร์ฟเวอร์ได้', 'error');
-  }
-  formData.value = createEmptyFormData();
+               // ฟังก์ชันดึงข้อมูลล่าสุดจาก Google Sheets มาอัปเดตหน้าจอทันที
+const refreshAllData = async () => {
+    try {
+        const res = await fetch(`${API_URL}?action=getAll`);
+        const data = await res.json();
+        records.value = data.records || [];
+        if (data.approvers && data.approvers.length > 0) {
+            approversList.value = data.approvers;
+        }
+    } catch (err) {
+        console.error('โหลดข้อมูลไม่สำเร็จ', err);
+    }
+};
+
+// โหลดข้อมูลตอนเปิดหน้าเว็บครั้งแรก
+onMounted(async () => {
+    await refreshAllData();
+    formData.value = createEmptyFormData();
 });
 
                 const saveRecordsToStorage = () => {
@@ -1673,25 +1681,27 @@
 
                 // Confirm and Save Final Submission
                 const confirmAndSaveSubmission = async () => {
-  const newRecord = JSON.parse(JSON.stringify(activePreviewData.value));
-  newRecord.id = Date.now().toString();
-  newRecord.created_at = getTodayFormatted();
+    const newRecord = JSON.parse(JSON.stringify(activePreviewData.value));
+    newRecord.id = Date.now().toString();
+    newRecord.created_at = getTodayFormatted();
 
-  if (isDuplicateTitle(newRecord.title_th, newRecord.title_en)) {
-    newRecord.admin_review.result = 'ข้อมูลซ้ำ';
-    newRecord.admin_review.passed = false;
-    newRecord.admin_review.reason = 'ตรวจพบชื่อผลงานวิจัยซ้ำกับในระบบ';
-  }
+    if (isDuplicateTitle(newRecord.title_th, newRecord.title_en)) {
+        newRecord.admin_review.result = 'ข้อมูลซ้ำ';
+        newRecord.admin_review.passed = false;
+        newRecord.admin_review.reason = 'ตรวจพบชื่อผลงานวิจัยซ้ำกับในระบบ';
+    }
 
-  await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'addRecord', record: newRecord })
-  });
+    await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'addRecord', record: newRecord })
+    });
 
-  records.value.unshift(newRecord);
-  showToast('บันทึกข้อมูลผลงานวิจัยเข้าระบบเรียบร้อยแล้ว!');
-  showPreviewModal.value = false;
-  formData.value = createEmptyFormData();
+    showToast('บันทึกข้อมูลผลงานวิจัยเข้าระบบเรียบร้อยแล้ว!');
+    showPreviewModal.value = false;
+    formData.value = createEmptyFormData();
+    
+    await refreshAllData(); // <--- เพิ่มบรรทัดนี้
 };
 
                 // Admin Functions
@@ -1758,23 +1768,31 @@
                 };
 
                 const saveAdminReview = async () => {
-  const index = records.value.findIndex(r => r.id === activePreviewData.value.id);
-  if (index !== -1) {
-    records.value[index].admin_review = JSON.parse(JSON.stringify(activePreviewData.value.admin_review));
-    await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateRecord', record: records.value[index] })
-    });
-    showToast('บันทึกผลการพิจารณา ส่วนที่ ๔ เรียบร้อยแล้ว');
-  }
+    const index = records.value.findIndex(r => r.id === activePreviewData.value.id);
+    if (index !== -1) {
+        records.value[index].admin_review = JSON.parse(JSON.stringify(activePreviewData.value.admin_review));
+        await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'updateRecord', record: records.value[index] })
+        });
+        showToast('บันทึกผลการพิจารณา ส่วนที่ ๔ เรียบร้อยแล้ว');
+        
+        await refreshAllData(); // <--- เพิ่มบรรทัดนี้เพื่อให้ข้อมูลอัปเดตทันที
+    }
 };
 
                 const deleteRecord = async (id) => {
-  if (window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
-    await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteRecord', id }) });
-    records.value = records.value.filter(r => r.id !== id);
-    showToast('ลบรายการเรียบร้อยแล้ว');
-  }
+    if (window.confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
+        await fetch(API_URL, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'deleteRecord', id }) 
+        });
+        showToast('ลบรายการเรียบร้อยแล้ว');
+        
+        await refreshAllData(); // <--- เพิ่มบรรทัดนี้
+    }
 };
 
 
@@ -1896,6 +1914,7 @@
                     totalPercentage,
                     addAuthor,
                     removeAuthor,
+refreshAllData,
                     handleFileUpload,
                     openFile,
                     triggerPreviewModal,
